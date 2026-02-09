@@ -18,17 +18,42 @@ export function FileUpload({ onFileSelect, selectedFile, onClear, isProcessing }
   const countPdfPages = async (file: File): Promise<number> => {
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pdfString = new TextDecoder().decode(arrayBuffer.slice(0, 100000));
+      const pdfString = new TextDecoder().decode(arrayBuffer.slice(0, 500000)); // Read more bytes
       
-      // Try to find /Count in PDF
+      // Try multiple patterns to find page count
+      // Pattern 1: /Type /Pages ... /Count X
       const countMatch = pdfString.match(/\/Type\s*\/Pages[^\0]*\/Count\s+(\d+)/);
       if (countMatch) {
         return parseInt(countMatch[1], 10);
       }
       
-      // Fallback: count /Page references
-      const pageMatches = pdfString.match(/\/Type\s*\/Page\s*(\/|$)/g);
-      return pageMatches ? Math.min(pageMatches.length, 1000) : 1;
+      // Pattern 2: Look for /Count X in catalog
+      const countMatch2 = pdfString.match(/\/Count\s+(\d+)/);
+      if (countMatch2) {
+        return parseInt(countMatch2[1], 10);
+      }
+      
+      // Pattern 3: Count /Type /Page occurrences (more reliable)
+      const pageMatches = pdfString.match(/\/Type\s*\/Page\b/g);
+      if (pageMatches && pageMatches.length > 0) {
+        return Math.min(pageMatches.length, 1000);
+      }
+      
+      // Pattern 4: Look for /N X (number of pages in page tree)
+      const nMatch = pdfString.match(/\/N\s+(\d+)/);
+      if (nMatch) {
+        return parseInt(nMatch[1], 10);
+      }
+      
+      // Pattern 5: Look for /Pages dict with /Kids array length
+      const kidsMatch = pdfString.match(/\/Kids\s*\[([^\]]+)\]/);
+      if (kidsMatch) {
+        // Count references in Kids array
+        const refs = kidsMatch[1].match(/\d+\s+\d+\s+R/g);
+        if (refs) return Math.min(refs.length, 1000);
+      }
+      
+      return 1;
     } catch {
       return 1;
     }
