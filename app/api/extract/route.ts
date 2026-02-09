@@ -434,4 +434,4 @@ export async function POST(request: NextRequest) {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 600; // 10 minutes for large PDFs
+export const maxDuration = 300; // 5 minutes (Vercel hobby plan limit)
