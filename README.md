@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sarvam Podcast Generator
+
+Transform PDF documents into engaging multi-speaker podcasts using Sarvam AI APIs.
+
+## Features
+
+- 📄 **PDF Document Intelligence** - Extract text from PDFs using Sarvam's Document Intelligence API
+- 📝 **AI Script Generation** - Convert extracted content into conversational podcast scripts using Sarvam-M
+- 🎙️ **Multi-Speaker TTS** - Generate audio with 45 different voices using Sarvam's Text-to-Speech (bulbul:v3)
+- 🇮🇳 **Indian Languages** - Support for 11 Indian languages including Hindi, Bengali, Tamil, Telugu, and more
+- ✨ **Batch Processing** - Handles large PDFs (20+ pages) by splitting into chunks
+- 🎨 **Clean UI** - Minimal, responsive interface inspired by Sarvam's design
+
+## Tech Stack
+
+- **Framework**: Next.js 16 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: shadcn/ui
+- **AI APIs**: Sarvam AI SDK
+- **Runtime**: Bun
 
 ## Getting Started
 
-First, run the development server:
-
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/DevAgarwal2/sarvam-podcast-generator.git
+cd sarvam-podcast-generator
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+bun install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Create `.env` file:
+```bash
+cp .env.example .env
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Add your Sarvam API key to `.env`:
+```
+SARVAM_API_KEY=your_api_key_here
+```
 
-## Learn More
+Get your API key from: https://dashboard.sarvam.ai
 
-To learn more about Next.js, take a look at the following resources:
+5. Run the development server:
+```bash
+bun run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+6. Open http://localhost:3000
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Usage
 
-## Deploy on Vercel
+1. **Upload PDF** - Drag & drop or select a PDF file
+2. **Select Language** - Choose from 11 Indian languages
+3. **Extract Content** - AI processes the document
+4. **Generate Script** - Creates conversational script with Host, Expert, and Guest
+5. **Select Voices** - Choose from 45 different speakers
+6. **Generate Audio** - Creates combined podcast audio file
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API Endpoints
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `POST /api/extract` - Document Intelligence for PDF extraction
+- `POST /api/generate-script` - Sarvam-M for script generation
+- `POST /api/tts` - Text-to-Speech for audio generation
+
+## License
+
+MIT
+
+## Powered By
+
+- [Sarvam AI](https://www.sarvam.ai/) - Document Intelligence, Sarvam-M, Text-to-Speech
