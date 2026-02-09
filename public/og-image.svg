@@ -1,0 +1,46 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#F8F6F3"/>
+  
+  <!-- Left side decorative elements -->
+  <circle cx="100" cy="100" r="150" fill="#C8D5B9" opacity="0.3"/>
+  <circle cx="1100" cy="530" r="200" fill="#A8B8E8" opacity="0.3"/>
+  <circle cx="150" cy="550" r="100" fill="#F5B57A" opacity="0.2"/>
+  
+  <!-- Main content container -->
+  <rect x="100" y="115" width="1000" height="400" rx="24" fill="white" stroke="#E5E5E5" stroke-width="2"/>
+  
+  <!-- Logo area -->
+  <g transform="translate(180, 195)">
+    <!-- Circle background -->
+    <circle cx="60" cy="60" r="50" fill="#2B2B2B"/>
+    <!-- Headphones -->
+    <path d="M30 60C30 43.43 43.43 30 60 30C76.57 30 90 43.43 90 60" stroke="white" stroke-width="6" stroke-linecap="round"/>
+    <rect x="28" y="58" width="16" height="24" rx="4" fill="#C8D5B9"/>
+    <rect x="76" y="58" width="16" height="24" rx="4" fill="#A8B8E8"/>
+    <!-- Sound waves -->
+    <path d="M60 50V70" stroke="white" stroke-width="4" stroke-linecap="round"/>
+    <path d="M50 55V65" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+    <path d="M70 55V65" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  </g>
+  
+  <!-- Text content -->
+  <text x="280" y="235" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="700" fill="#2B2B2B">Sarvam Podcast Generator</text>
+  
+  <text x="280" y="285" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="400" fill="#8B8B8B">Transform PDFs into Multi-Speaker Podcasts</text>
+  
+  <!-- Feature pills -->
+  <g transform="translate(280, 320)">
+    <rect x="0" y="0" width="180" height="40" rx="20" fill="#C8D5B9"/>
+    <text x="90" y="26" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#2B2B2B">11 Languages</text>
+    
+    <rect x="195" y="0" width="150" height="40" rx="20" fill="#A8B8E8"/>
+    <text x="270" y="26" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#2B2B2B">45 Voices</text>
+    
+    <rect x="360" y="0" width="180" height="40" rx="20" fill="#F5B57A"/>
+    <text x="450" y="26" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#2B2B2B">AI Powered</text>
+  </g>
+  
+  <!-- Powered by Sarvam -->
+  <text x="600" y="460" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="500" fill="#8B8B8B">Powered by Sarvam AI</text>
+</svg>

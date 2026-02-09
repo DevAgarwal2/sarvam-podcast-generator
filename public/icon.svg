@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#F8F6F3"/>
+  
+  <!-- Circle background -->
+  <circle cx="256" cy="256" r="180" fill="#2B2B2B"/>
+  
+  <!-- Headphones icon -->
+  <path d="M156 256C156 200.771 200.771 156 256 156C311.229 156 356 200.771 356 256" stroke="white" stroke-width="24" stroke-linecap="round"/>
+  <path d="M156 256V316C156 330.359 167.641 342 182 342H186C192.627 342 198 336.627 198 330V290C198 283.373 192.627 278 186 278H182C167.641 278 156 266.359 156 252V256Z" fill="#C8D5B9"/>
+  <path d="M356 256V316C356 330.359 344.359 342 330 342H326C319.373 342 314 336.627 314 330V290C314 283.373 319.373 278 326 278H330C344.359 278 356 266.359 356 252V256Z" fill="#A8B8E8"/>
+  
+  <!-- Sound waves -->
+  <path d="M256 220V292" stroke="white" stroke-width="16" stroke-linecap="round"/>
+  <path d="M226 238V274" stroke="white" stroke-width="12" stroke-linecap="round" opacity="0.7"/>
+  <path d="M286 238V274" stroke="white" stroke-width="12" stroke-linecap="round" opacity="0.7"/>
+</svg>
