@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SarvamAIClient, SarvamAI } from 'sarvamai';
 import AdmZip from 'adm-zip';
-import { writeFile, readFile, unlink, mkdir, rmdir } from 'fs/promises';
+import { writeFile, readFile, unlink, mkdir, rmdir, readdir, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { PDFDocument } from 'pdf-lib';
@@ -286,29 +286,51 @@ async function processLargePdf(
     const chunkFiles = await splitPdfIntoChunks(fileBuffer, PAGES_PER_CHUNK, chunksDir);
     console.log(`\n✓ Split into ${chunkFiles.length} chunks`);
     
-    // Step 2: Process chunks in PARALLEL for speed
+    // Step 2: Process chunks in PARALLEL with concurrency limit
     console.log('\n' + '='.repeat(70));
-    console.log(`Processing ${chunkFiles.length} chunks in PARALLEL...`);
-    console.log('(All chunks process simultaneously - much faster!)');
+    console.log(`Processing ${chunkFiles.length} chunks in PARALLEL with concurrency limit...`);
+    console.log('(Up to 5 chunks process simultaneously for optimal speed)');
     console.log('='.repeat(70));
 
-    const chunkPromises = chunkFiles.map((chunkFile, index) =>
-      processSingleChunk(client, chunkFile, language, outputFormat, index)
-        .then(text => ({ index, text, success: true }))
-        .catch(error => {
-          console.error(`  ✗ Error processing chunk ${index + 1}:`, error);
-          return { index, text: '', success: false };
-        })
-    );
-
-    // Wait for all chunks to complete in parallel
-    const results = await Promise.all(chunkPromises);
-
-    // Sort by index and collect successful results
-    const extractedTexts: string[] = results
-      .filter((result): result is { index: number; text: string; success: true } => result.success)
-      .sort((a, b) => a.index - b.index)
-      .map(result => `<!-- Chunk ${result.index + 1} -->\n\n${result.text}`);
+    // Process in batches of 5 to avoid overwhelming the API
+    const CONCURRENCY_LIMIT = 5;
+    interface ChunkResult { index: number; text: string; }
+    const extractedTexts: ChunkResult[] = [];
+    
+    for (let i = 0; i < chunkFiles.length; i += CONCURRENCY_LIMIT) {
+      const batch = chunkFiles.slice(i, i + CONCURRENCY_LIMIT);
+      const batchNumber = Math.floor(i / CONCURRENCY_LIMIT) + 1;
+      const totalBatches = Math.ceil(chunkFiles.length / CONCURRENCY_LIMIT);
+      
+      console.log(`\n[Batch ${batchNumber}/${totalBatches}] Processing chunks ${i + 1}-${Math.min(i + batch.length, chunkFiles.length)}...`);
+      
+      const batchPromises = batch.map((chunkFile, batchIndex) => {
+        const globalIndex = i + batchIndex;
+        return processSingleChunk(client, chunkFile, language, outputFormat, globalIndex)
+          .then(text => ({ index: globalIndex, text, success: true }))
+          .catch(error => {
+            console.error(`  ✗ Error processing chunk ${globalIndex + 1}:`, error);
+            return { index: globalIndex, text: '', success: false };
+          });
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      
+      // Collect successful results from this batch
+      batchResults.forEach(result => {
+        if (result.success) {
+          extractedTexts.push({
+            index: result.index,
+            text: `<!-- Chunk ${result.index + 1} -->\n\n${result.text}`,
+          });
+        }
+      });
+      
+      console.log(`[Batch ${batchNumber}] Complete - ${batchResults.filter(r => r.success).length}/${batch.length} chunks successful`);
+    }
+    
+    // Sort by index to maintain order
+    extractedTexts.sort((a, b) => a.index - b.index);
     
     // Step 3: Merge outputs
     console.log('\n' + '='.repeat(70));
@@ -316,7 +338,7 @@ async function processLargePdf(
     console.log('='.repeat(70));
     
     const separator = outputFormat === 'md' ? '\n\n---\n\n' : '\n\n<!-- Page Break -->\n\n';
-    const mergedText = extractedTexts.join(separator);
+    const mergedText = extractedTexts.map(item => item.text).join(separator);
     
     console.log(`✓ Merged ${extractedTexts.length} chunks`);
     
@@ -336,9 +358,12 @@ async function processLargePdf(
     // Cleanup on error
     console.log('\nCleaning up after error...');
     try {
-      const files = await readFile(chunksDir);
-      // Note: This won't work as expected, but errors here are okay
-    } catch {}
+      // Remove entire chunks directory recursively
+      await rm(chunksDir, { recursive: true, force: true });
+      console.log('✓ Cleanup complete');
+    } catch {
+      // Ignore cleanup errors
+    }
     throw error;
   }
 }

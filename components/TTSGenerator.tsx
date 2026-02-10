@@ -181,59 +181,102 @@ export function TTSGenerator({ script, language }: TTSGeneratorProps) {
     };
   }, [isPlaying]);
 
-  // Generate audio for all segments
+  // Generate audio for all segments in PARALLEL
   const generateAudio = async () => {
     setIsGenerating(true);
     setError(null);
     setProgress(0);
 
-    const segments: AudioSegment[] = [];
     const allSegments = [
       { speaker: 'Host', text: script.introduction },
       ...script.segments,
       { speaker: 'Host', text: script.conclusion },
     ];
 
-    console.log(`Starting TTS generation for ${allSegments.length} segments...`);
+    console.log(`Starting PARALLEL TTS generation for ${allSegments.length} segments...`);
+    const startTime = performance.now();
 
     try {
-      for (let i = 0; i < allSegments.length; i++) {
-        const segment = allSegments[i];
+      // Create progress tracking array
+      const progressTracker = new Array(allSegments.length).fill(false);
+      const updateProgress = () => {
+        const completed = progressTracker.filter(Boolean).length;
+        setProgress((completed / allSegments.length) * 100);
+      };
+
+      // Generate all segments in parallel with individual error handling
+      const segmentPromises = allSegments.map(async (segment, index) => {
         const speakerName = selectedSpeakers[segment.speaker] || 'aditya';
         
-        console.log(`Processing segment ${i + 1}/${allSegments.length}: ${segment.speaker} (${segment.text.length} chars)`);
+        console.log(`[Parallel] Starting segment ${index + 1}/${allSegments.length}: ${segment.speaker}`);
 
-        const response = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: segment.text,
-            language: language,
-            speaker: speakerName,
-            pace: 1.0,
-            temperature: 0.6,
-          }),
-        });
+        try {
+          const response = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: segment.text,
+              language: language,
+              speaker: speakerName,
+              pace: 1.0,
+              temperature: 0.6,
+            }),
+          });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.error(`Segment ${i + 1} failed:`, errorData);
-          throw new Error(`Failed to generate audio for segment ${i + 1}: ${errorData.error || 'Unknown error'}`);
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Segment ${index + 1} failed: ${errorData.error || 'Unknown error'}`);
+          }
+
+          const result = await response.json();
+          
+          // Update progress
+          progressTracker[index] = true;
+          updateProgress();
+          
+          console.log(`[Parallel] ✓ Segment ${index + 1} complete`);
+          
+          return {
+            index,
+            segment: {
+              text: segment.text,
+              speaker: speakerName,
+              audioBase64: result.audioBase64,
+            },
+            success: true,
+          };
+        } catch (error) {
+          console.error(`[Parallel] ✗ Segment ${index + 1} failed:`, error);
+          progressTracker[index] = true; // Mark as done (but failed)
+          updateProgress();
+          return {
+            index,
+            segment: null,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
         }
+      });
 
-        const result = await response.json();
-        segments.push({
-          text: segment.text,
-          speaker: speakerName,
-          audioBase64: result.audioBase64,
-        });
-        
-        console.log(`✓ Segment ${i + 1} complete`);
-
-        setProgress(((i + 1) / allSegments.length) * 100);
-      }
+      // Wait for all segments to complete
+      const results = await Promise.all(segmentPromises);
       
-      console.log(`All ${segments.length} segments generated successfully`);
+      // Check for failures
+      const failedSegments = results.filter(r => !r.success);
+      if (failedSegments.length > 0) {
+        const errorMessage = failedSegments.map(f => f.error).join('; ');
+        throw new Error(`Failed to generate ${failedSegments.length} segment(s): ${errorMessage}`);
+      }
+
+      // Sort by original index to maintain order
+      const sortedResults = results
+        .filter((r): r is { index: number; segment: AudioSegment; success: true } => r.success)
+        .sort((a, b) => a.index - b.index);
+      
+      const segments = sortedResults.map(r => r.segment);
+      
+      const endTime = performance.now();
+      console.log(`[Parallel] All ${segments.length} segments generated in ${(endTime - startTime).toFixed(0)}ms`);
 
       setAudioSegments(segments);
       
