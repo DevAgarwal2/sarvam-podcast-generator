@@ -6,6 +6,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { PDFDocument } from 'pdf-lib';
 import { isOfficeDocument, getFileExtension, cleanupConvertedFile } from '@/lib/document-converter';
+import { extractTextFromPptx } from '@/lib/pptx-extractor';
 
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY;
 const PAGES_PER_CHUNK = 5;
@@ -438,9 +439,8 @@ export async function POST(request: NextRequest) {
           const result = await mammoth.extractRawText({ buffer: buffer });
           extractedText = result.value;
         } else if (fileExt === 'pptx') {
-          // For PPTX, return a helpful message for now
-          // PPTX extraction requires additional setup
-          throw new Error('PPTX support is temporarily unavailable. Please convert to PDF or use DOCX format.');
+          // Use custom PPTX extractor
+          extractedText = await extractTextFromPptx(buffer);
         }
         
         // Clean up extracted text
