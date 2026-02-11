@@ -428,17 +428,20 @@ export async function POST(request: NextRequest) {
     let chunksProcessed = 1;
     
     if (isOfficeDoc) {
-      // Office documents - extract text using office-text-extractor
+      // Office documents - extract text
       console.log(`Extracting text from ${fileExt.toUpperCase()}...`);
       
       try {
-        // Dynamic import for ESM-only package
-        const { getTextExtractor } = await import('office-text-extractor');
-        const extractor = getTextExtractor();
-        extractedText = await extractor.extractText({
-          input: buffer,
-          type: 'buffer'
-        });
+        if (fileExt === 'docx') {
+          // Use mammoth for DOCX (reliable)
+          const mammoth = await import('mammoth');
+          const result = await mammoth.extractRawText({ buffer: buffer });
+          extractedText = result.value;
+        } else if (fileExt === 'pptx') {
+          // For PPTX, return a helpful message for now
+          // PPTX extraction requires additional setup
+          throw new Error('PPTX support is temporarily unavailable. Please convert to PDF or use DOCX format.');
+        }
         
         // Clean up extracted text
         extractedText = extractedText
@@ -452,7 +455,7 @@ export async function POST(request: NextRequest) {
         console.log(`✓ Extracted ${extractedText.length} characters from ${fileExt.toUpperCase()}`);
       } catch (extractError) {
         console.error(`Error extracting text from ${fileExt}:`, extractError);
-        throw new Error(`Failed to extract text from ${fileExt.toUpperCase()} file`);
+        throw new Error(extractError instanceof Error ? extractError.message : `Failed to extract text from ${fileExt.toUpperCase()} file`);
       }
     } else {
       // PDF files - use Sarvam Document Intelligence
