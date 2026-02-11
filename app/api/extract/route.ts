@@ -6,7 +6,6 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { PDFDocument } from 'pdf-lib';
 import { isOfficeDocument, getFileExtension, cleanupConvertedFile } from '@/lib/document-converter';
-import { getTextExtractor } from 'office-text-extractor';
 
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY;
 const PAGES_PER_CHUNK = 5;
@@ -433,6 +432,8 @@ export async function POST(request: NextRequest) {
       console.log(`Extracting text from ${fileExt.toUpperCase()}...`);
       
       try {
+        // Dynamic import for ESM-only package
+        const { getTextExtractor } = await import('office-text-extractor');
         const extractor = getTextExtractor();
         extractedText = await extractor.extractText({
           input: buffer,
