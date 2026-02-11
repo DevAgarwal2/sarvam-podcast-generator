@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SarvamAIClient, SarvamAI } from 'sarvamai';
 import AdmZip from 'adm-zip';
-import { writeFile, readFile, unlink, mkdir, rmdir, readdir, rm } from 'fs/promises';
+import { writeFile, readFile, unlink, mkdir, rmdir, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { PDFDocument } from 'pdf-lib';
+import { isOfficeDocument, getFileExtension, cleanupConvertedFile } from '@/lib/document-converter';
+import { getTextExtractor } from 'office-text-extractor';
 
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY;
 const PAGES_PER_CHUNK = 5;
@@ -389,61 +391,111 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (file.type !== 'application/pdf') {
+    // Supported file types
+    const supportedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // PPTX
+    ];
+    
+    if (!supportedTypes.includes(file.type) && !isOfficeDocument(file.name)) {
       return NextResponse.json(
-        { error: 'Only PDF files are supported' },
+        { error: 'Only PDF, DOCX, and PPTX files are supported' },
         { status: 400 }
       );
     }
 
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Count pages to determine processing strategy
-    const pageCount = await getPdfPageCount(buffer);
-    const needsBatchProcessing = pageCount > PAGES_PER_CHUNK;
-
-    // Initialize Sarvam AI client
-    const client = new SarvamAIClient({
-      apiSubscriptionKey: SARVAM_API_KEY,
-    });
-
-    // Map language and format to SDK types
-    const language = mapLanguageCode(languageCode);
-    const outputFormat = mapOutputFormat(outputFormatCode);
-
+    let buffer: Buffer = Buffer.from(bytes);
     let extractedText = '';
-    let chunksProcessed = 1;
+    let isOfficeDoc = false;
+    
+    // Check if it's an office document
+    const fileExt = getFileExtension(file.name);
+    if (fileExt === 'docx' || fileExt === 'pptx') {
+      isOfficeDoc = true;
+    }
 
-    if (needsBatchProcessing) {
-      // Batch processing for large PDFs
-      const result = await processLargePdf(
-        client,
-        buffer,
-        file.name,
-        language,
-        outputFormat
-      );
-      extractedText = result.text;
-      chunksProcessed = result.chunksProcessed;
+    // Count pages to determine processing strategy (only for PDFs)
+    let pageCount = 1;
+    let needsBatchProcessing = false;
+    
+    if (!isOfficeDoc) {
+      pageCount = await getPdfPageCount(buffer);
+      needsBatchProcessing = pageCount > PAGES_PER_CHUNK;
+    }
+
+    // Process based on file type
+    let chunksProcessed = 1;
+    
+    if (isOfficeDoc) {
+      // Office documents - extract text using office-text-extractor
+      console.log(`Extracting text from ${fileExt.toUpperCase()}...`);
+      
+      try {
+        const extractor = getTextExtractor();
+        extractedText = await extractor.extractText({
+          input: buffer,
+          type: 'buffer'
+        });
+        
+        // Clean up extracted text
+        extractedText = extractedText
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        if (!extractedText || extractedText.length < 50) {
+          throw new Error(`No text content found in ${fileExt.toUpperCase()} file`);
+        }
+        
+        console.log(`✓ Extracted ${extractedText.length} characters from ${fileExt.toUpperCase()}`);
+      } catch (extractError) {
+        console.error(`Error extracting text from ${fileExt}:`, extractError);
+        throw new Error(`Failed to extract text from ${fileExt.toUpperCase()} file`);
+      }
     } else {
-      // Direct processing for small PDFs
-      extractedText = await processDocumentDirect(
-        client,
-        buffer,
-        file.name,
-        language,
-        outputFormat
-      );
+      // PDF files - use Sarvam Document Intelligence
+      console.log('Processing PDF with Sarvam Document Intelligence...');
+      
+      // Initialize Sarvam AI client
+      const client = new SarvamAIClient({
+        apiSubscriptionKey: SARVAM_API_KEY,
+      });
+
+      // Map language and format to SDK types
+      const language = mapLanguageCode(languageCode);
+      const outputFormat = mapOutputFormat(outputFormatCode);
+
+      if (needsBatchProcessing) {
+        // Batch processing for large PDFs
+        const result = await processLargePdf(
+          client,
+          buffer,
+          file.name,
+          language,
+          outputFormat
+        );
+        extractedText = result.text;
+        chunksProcessed = result.chunksProcessed;
+      } else {
+        // Direct processing for small PDFs
+        extractedText = await processDocumentDirect(
+          client,
+          buffer,
+          file.name,
+          language,
+          outputFormat
+        );
+      }
     }
 
     const result: ProcessResult = {
       success: true,
       pageCount,
-      needsBatchProcessing,
+      needsBatchProcessing: isOfficeDoc ? false : needsBatchProcessing,
       extractedText,
       language: languageCode,
-      chunksProcessed,
+      chunksProcessed: isOfficeDoc ? 1 : chunksProcessed,
     };
 
     return NextResponse.json(result);

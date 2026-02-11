@@ -26,7 +26,10 @@ import {
   MessageCircle,
   ArrowLeft,
   RotateCcw,
-  Settings
+  Settings,
+  Link,
+  Globe,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -41,6 +44,10 @@ interface ExtractionResult {
 
 export default function Home() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
+  const [urlInput, setUrlInput] = useState('');
+  const [urlTitle, setUrlTitle] = useState('');
+  const [inputMode, setInputMode] = useState<'file' | 'url' | 'images'>('file');
   const [selectedLanguage, setSelectedLanguage] = useState('hi-IN');
   const [currentStep, setCurrentStep] = useState(1);
   const [loadingState, setLoadingState] = useState<LoadingState | null>(null);
@@ -56,11 +63,126 @@ export default function Home() {
 
   const handleClearFile = () => {
     setSelectedFile(null);
+    setSelectedImages([]);
+    setUrlInput('');
+    setUrlTitle('');
+    setInputMode('file');
     setExtractionResult(null);
     setGeneratedScript(null);
     setShowTTS(false);
     setCurrentStep(1);
     setError(null);
+  };
+
+  const handleImageSelect = (files: FileList | null) => {
+    if (!files) return;
+    
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    const validFiles = Array.from(files).filter(file => validTypes.includes(file.type));
+    
+    if (validFiles.length > 10) {
+      setError('Maximum 10 images allowed');
+      setSelectedImages(validFiles.slice(0, 10));
+    } else {
+      setSelectedImages(validFiles);
+      setError(null);
+    }
+  };
+
+  const handleImagesOCR = async () => {
+    if (selectedImages.length === 0) return;
+
+    setLoadingState({
+      step: 'extract',
+      message: 'Processing Images',
+      subMessage: `Extracting text from ${selectedImages.length} image(s)...`,
+    });
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      selectedImages.forEach((image) => {
+        formData.append('images', image);
+      });
+
+      const response = await fetch('/api/ocr', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'OCR processing failed');
+      }
+
+      // Create extraction result from OCR
+      const extractionResult: ExtractionResult = {
+        success: true,
+        pageCount: result.imageCount,
+        needsBatchProcessing: false,
+        extractedText: result.extractedText,
+        language: selectedLanguage,
+        chunksProcessed: result.processedCount,
+      };
+
+      setLoadingState(prev => prev ? { ...prev, progress: 100 } : null);
+      setTimeout(() => {
+        setLoadingState(null);
+        setExtractionResult(extractionResult);
+        setCurrentStep(2);
+      }, 500);
+    } catch (err) {
+      setLoadingState(null);
+      setError(err instanceof Error ? err.message : 'OCR processing failed');
+    }
+  };
+
+  const handleScrapeUrl = async () => {
+    if (!urlInput.trim()) return;
+
+    setLoadingState({
+      step: 'extract',
+      message: 'Fetching URL',
+      subMessage: `Scraping content from ${urlInput}...`,
+    });
+    setError(null);
+
+    try {
+      const response = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlInput }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to scrape URL');
+      }
+
+      setUrlTitle(result.title);
+      
+      // Create extraction result from URL content
+      const extractionResult: ExtractionResult = {
+        success: true,
+        pageCount: 1,
+        needsBatchProcessing: false,
+        extractedText: result.extractedText,
+        language: selectedLanguage,
+        chunksProcessed: 1,
+      };
+
+      setLoadingState(prev => prev ? { ...prev, progress: 100 } : null);
+      setTimeout(() => {
+        setLoadingState(null);
+        setExtractionResult(extractionResult);
+        setCurrentStep(2);
+      }, 500);
+    } catch (err) {
+      setLoadingState(null);
+      setError(err instanceof Error ? err.message : 'Failed to scrape URL');
+    }
   };
 
   const handleExtractDocument = async () => {
@@ -314,35 +436,190 @@ export default function Home() {
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg font-medium flex items-center gap-2">
                     <Upload className="h-5 w-5 text-[#8B8B8B]" />
-                    Upload Document
+                    Add Content
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <FileUpload
-                    onFileSelect={handleFileSelect}
-                    selectedFile={selectedFile}
-                    onClear={handleClearFile}
-                    isProcessing={!!loadingState}
-                  />
-
-                  <div className="pt-4 border-t border-[#E5E5E5]">
-                    <LanguageSelector
-                      value={selectedLanguage}
-                      onChange={setSelectedLanguage}
-                      disabled={!!loadingState || !selectedFile}
-                    />
+                  {/* Input Mode Toggle */}
+                  <div className="flex gap-2 p-1 bg-[#F8F6F3] rounded-xl">
+                    <button
+                      onClick={() => setInputMode('file')}
+                      className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                        inputMode === 'file'
+                          ? 'bg-white text-[#2B2B2B] shadow-sm'
+                          : 'text-[#8B8B8B] hover:text-[#2B2B2B]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        File
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setInputMode('url')}
+                      className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                        inputMode === 'url'
+                          ? 'bg-white text-[#2B2B2B] shadow-sm'
+                          : 'text-[#8B8B8B] hover:text-[#2B2B2B]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <Link className="h-4 w-4" />
+                        URL
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setInputMode('images')}
+                      className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                        inputMode === 'images'
+                          ? 'bg-white text-[#2B2B2B] shadow-sm'
+                          : 'text-[#8B8B8B] hover:text-[#2B2B2B]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <ImageIcon className="h-4 w-4" />
+                        Images
+                      </div>
+                    </button>
                   </div>
 
-                  {selectedFile && (
-                    <Button
-                      onClick={handleExtractDocument}
-                      disabled={!!loadingState}
-                      className="w-full h-12 bg-[#2B2B2B] hover:bg-[#1a1a1a] text-white rounded-xl"
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      Extract Content
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
+                  {inputMode === 'file' && (
+                    <>
+                      <FileUpload
+                        onFileSelect={handleFileSelect}
+                        selectedFile={selectedFile}
+                        onClear={handleClearFile}
+                        isProcessing={!!loadingState}
+                      />
+
+                      <div className="pt-4 border-t border-[#E5E5E5]">
+                        <LanguageSelector
+                          value={selectedLanguage}
+                          onChange={setSelectedLanguage}
+                          disabled={!!loadingState || !selectedFile}
+                        />
+                      </div>
+
+                      {selectedFile && (
+                        <Button
+                          onClick={handleExtractDocument}
+                          disabled={!!loadingState}
+                          className="w-full h-12 bg-[#2B2B2B] hover:bg-[#1a1a1a] text-white rounded-xl"
+                        >
+                          <FileText className="mr-2 h-4 w-4" />
+                          Extract Content
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                      )}
+                    </>
+                  )}
+
+                  {inputMode === 'url' && (
+                    <>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-[#2B2B2B]">
+                            Webpage URL
+                          </label>
+                          <div className="relative">
+                            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8B8B8B]" />
+                            <input
+                              type="url"
+                              value={urlInput}
+                              onChange={(e) => setUrlInput(e.target.value)}
+                              placeholder="https://example.com/article"
+                              className="w-full h-12 pl-10 pr-4 bg-white border border-[#E5E5E5] rounded-xl text-[#2B2B2B] placeholder:text-[#8B8B8B] focus:outline-none focus:border-[#2B2B2B]"
+                              disabled={!!loadingState}
+                            />
+                          </div>
+                          <p className="text-xs text-[#8B8B8B]">
+                            Paste a link to a blog post, article, or any webpage
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-[#E5E5E5]">
+                        <LanguageSelector
+                          value={selectedLanguage}
+                          onChange={setSelectedLanguage}
+                          disabled={!!loadingState || !urlInput.trim()}
+                        />
+                      </div>
+
+                      {urlInput.trim() && (
+                        <Button
+                          onClick={handleScrapeUrl}
+                          disabled={!!loadingState}
+                          className="w-full h-12 bg-[#2B2B2B] hover:bg-[#1a1a1a] text-white rounded-xl"
+                        >
+                          <Globe className="mr-2 h-4 w-4" />
+                          Fetch Content
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                      )}
+                    </>
+                  )}
+
+                  {inputMode === 'images' && (
+                    <>
+                      <div className="space-y-4">
+                        <div className="border-2 border-dashed border-[#E5E5E5] rounded-xl p-6 text-center hover:border-[#2B2B2B] hover:bg-[#F8F6F3] transition-all cursor-pointer">
+                          <input
+                            type="file"
+                            accept=".jpg,.jpeg,.png"
+                            multiple
+                            onChange={(e) => handleImageSelect(e.target.files)}
+                            disabled={!!loadingState}
+                            className="hidden"
+                            id="image-upload"
+                          />
+                          <label htmlFor="image-upload" className="cursor-pointer block">
+                            <ImageIcon className="h-8 w-8 text-[#8B8B8B] mx-auto mb-2" />
+                            <p className="text-sm font-medium text-[#2B2B2B]">
+                              Drop images here or click to browse
+                            </p>
+                            <p className="text-xs text-[#8B8B8B] mt-1">
+                              JPG, PNG (max 10 images)
+                            </p>
+                          </label>
+                        </div>
+
+                        {selectedImages.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-[#2B2B2B]">
+                              {selectedImages.length} image(s) selected
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedImages.map((img, idx) => (
+                                <div key={idx} className="bg-[#F8F6F3] px-3 py-1 rounded-lg text-xs text-[#2B2B2B]">
+                                  {img.name}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-4 border-t border-[#E5E5E5]">
+                        <LanguageSelector
+                          value={selectedLanguage}
+                          onChange={setSelectedLanguage}
+                          disabled={!!loadingState || selectedImages.length === 0}
+                        />
+                      </div>
+
+                      {selectedImages.length > 0 && (
+                        <Button
+                          onClick={handleImagesOCR}
+                          disabled={!!loadingState}
+                          className="w-full h-12 bg-[#2B2B2B] hover:bg-[#1a1a1a] text-white rounded-xl"
+                        >
+                          <ImageIcon className="mr-2 h-4 w-4" />
+                          Extract Text (OCR)
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -357,16 +634,24 @@ export default function Home() {
                       <CheckCircle2 className="h-5 w-5 text-[#2B2B2B]" />
                     </div>
                     <div>
-                      <CardTitle className="text-lg font-medium">Document Extracted</CardTitle>
-                      <p className="text-sm text-[#8B8B8B]">Ready to create script</p>
+                      <CardTitle className="text-lg font-medium">
+                        {urlTitle || 'Content Extracted'}
+                      </CardTitle>
+                      <p className="text-sm text-[#8B8B8B]">
+                        {urlInput ? 'Webpage content ready' : 'Ready to create script'}
+                      </p>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-[#F8F6F3] p-4 rounded-xl">
-                      <p className="text-xs text-[#8B8B8B] uppercase tracking-wide">Pages</p>
-                      <p className="text-2xl font-semibold text-[#2B2B2B]">{extractionResult.pageCount}</p>
+                      <p className="text-xs text-[#8B8B8B] uppercase tracking-wide">
+                        {urlInput ? 'Source' : 'Pages'}
+                      </p>
+                      <p className="text-2xl font-semibold text-[#2B2B2B]">
+                        {urlInput ? 'Web' : extractionResult.pageCount}
+                      </p>
                     </div>
                     <div className="bg-[#F8F6F3] p-4 rounded-xl">
                       <p className="text-xs text-[#8B8B8B] uppercase tracking-wide">Language</p>

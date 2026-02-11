@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, X, Clock, AlertCircle } from 'lucide-react';
+import { Upload, FileText, X, Clock, AlertCircle, FileSpreadsheet, Presentation } from 'lucide-react';
 
 interface FileUploadProps {
   onFileSelect: (file: File) => void;
@@ -11,6 +11,44 @@ interface FileUploadProps {
   isProcessing: boolean;
 }
 
+// Supported file extensions
+const SUPPORTED_EXTENSIONS = ['.pdf', '.docx', '.pptx'];
+
+// Check if file is supported
+const isSupportedFile = (file: File): boolean => {
+  const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+  return SUPPORTED_EXTENSIONS.includes(ext);
+};
+
+// Get file icon based on type
+const getFileIcon = (filename: string) => {
+  const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'));
+  switch (ext) {
+    case '.docx':
+      return <FileText className="h-6 w-6 text-white" />;
+    case '.pptx':
+      return <Presentation className="h-6 w-6 text-white" />;
+    case '.pdf':
+    default:
+      return <FileText className="h-6 w-6 text-white" />;
+  }
+};
+
+// Get file type label
+const getFileTypeLabel = (filename: string): string => {
+  const ext = filename.toLowerCase().slice(filename.lastIndexOf('.'));
+  switch (ext) {
+    case '.docx':
+      return 'Word Document';
+    case '.pptx':
+      return 'PowerPoint';
+    case '.pdf':
+      return 'PDF Document';
+    default:
+      return 'Document';
+  }
+};
+
 export function FileUpload({ onFileSelect, selectedFile, onClear, isProcessing }: FileUploadProps) {
   const [isDragActive, setIsDragActive] = useState(false);
   const [pageCount, setPageCount] = useState<number | null>(null);
@@ -18,37 +56,30 @@ export function FileUpload({ onFileSelect, selectedFile, onClear, isProcessing }
   const countPdfPages = async (file: File): Promise<number> => {
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pdfString = new TextDecoder().decode(arrayBuffer.slice(0, 500000)); // Read more bytes
+      const pdfString = new TextDecoder().decode(arrayBuffer.slice(0, 500000));
       
-      // Try multiple patterns to find page count
-      // Pattern 1: /Type /Pages ... /Count X
       const countMatch = pdfString.match(/\/Type\s*\/Pages[^\0]*\/Count\s+(\d+)/);
       if (countMatch) {
         return parseInt(countMatch[1], 10);
       }
       
-      // Pattern 2: Look for /Count X in catalog
       const countMatch2 = pdfString.match(/\/Count\s+(\d+)/);
       if (countMatch2) {
         return parseInt(countMatch2[1], 10);
       }
       
-      // Pattern 3: Count /Type /Page occurrences (more reliable)
       const pageMatches = pdfString.match(/\/Type\s*\/Page\b/g);
       if (pageMatches && pageMatches.length > 0) {
         return Math.min(pageMatches.length, 1000);
       }
       
-      // Pattern 4: Look for /N X (number of pages in page tree)
       const nMatch = pdfString.match(/\/N\s+(\d+)/);
       if (nMatch) {
         return parseInt(nMatch[1], 10);
       }
       
-      // Pattern 5: Look for /Pages dict with /Kids array length
       const kidsMatch = pdfString.match(/\/Kids\s*\[([^\]]+)\]/);
       if (kidsMatch) {
-        // Count references in Kids array
         const refs = kidsMatch[1].match(/\d+\s+\d+\s+R/g);
         if (refs) return Math.min(refs.length, 1000);
       }
@@ -74,18 +105,28 @@ export function FileUpload({ onFileSelect, selectedFile, onClear, isProcessing }
     setIsDragActive(false);
     
     const files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type === 'application/pdf') {
-      const pages = await countPdfPages(files[0]);
-      setPageCount(pages);
+    if (files.length > 0 && isSupportedFile(files[0])) {
+      const ext = files[0].name.toLowerCase().slice(files[0].name.lastIndexOf('.'));
+      if (ext === '.pdf') {
+        const pages = await countPdfPages(files[0]);
+        setPageCount(pages);
+      } else {
+        setPageCount(null); // Office docs don't have easy page count
+      }
       onFileSelect(files[0]);
     }
   }, [onFileSelect]);
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && files.length > 0) {
-      const pages = await countPdfPages(files[0]);
-      setPageCount(pages);
+    if (files && files.length > 0 && isSupportedFile(files[0])) {
+      const ext = files[0].name.toLowerCase().slice(files[0].name.lastIndexOf('.'));
+      if (ext === '.pdf') {
+        const pages = await countPdfPages(files[0]);
+        setPageCount(pages);
+      } else {
+        setPageCount(null);
+      }
       onFileSelect(files[0]);
     }
   }, [onFileSelect]);
@@ -97,19 +138,21 @@ export function FileUpload({ onFileSelect, selectedFile, onClear, isProcessing }
 
   if (selectedFile) {
     const isLargeFile = pageCount !== null && pageCount > 5;
+    const fileTypeLabel = getFileTypeLabel(selectedFile.name);
     
     return (
       <div className="space-y-3">
         <div className="bg-[#F8F6F3] rounded-xl p-5">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-[#E88B7D] flex items-center justify-center flex-shrink-0">
-              <FileText className="h-6 w-6 text-white" />
+              {getFileIcon(selectedFile.name)}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-[#2B2B2B] truncate">{selectedFile.name}</p>
               <p className="text-sm text-[#8B8B8B]">
                 {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                 {pageCount && ` • ${pageCount} pages`}
+                {` • ${fileTypeLabel}`}
               </p>
             </div>
             {!isProcessing && (
@@ -156,7 +199,7 @@ export function FileUpload({ onFileSelect, selectedFile, onClear, isProcessing }
     >
       <input
         type="file"
-        accept=".pdf"
+        accept=".pdf,.docx,.pptx"
         onChange={handleFileChange}
         disabled={isProcessing}
         className="hidden"
@@ -167,10 +210,10 @@ export function FileUpload({ onFileSelect, selectedFile, onClear, isProcessing }
           <Upload className="h-8 w-8 text-[#8B8B8B]" />
         </div>
         <p className="text-lg font-medium text-[#2B2B2B] mb-1">
-          Drop PDF here or click to browse
+          Drop file here or click to browse
         </p>
         <p className="text-sm text-[#8B8B8B]">
-          Supports PDF files up to 50MB
+          Supports PDF, DOCX, and PPTX files up to 50MB
         </p>
       </label>
     </div>

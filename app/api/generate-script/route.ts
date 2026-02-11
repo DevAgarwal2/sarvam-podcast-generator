@@ -84,7 +84,7 @@ Guidelines:
 
 CRITICAL JSON REQUIREMENTS:
 - Output MUST be valid JSON
-- Escape all quotes in text with backslash: \\"
+- Escape all quotes in text with backslash: \"
 - Escape newlines with \\n
 - No trailing commas
 - Use double quotes for all strings
@@ -110,7 +110,7 @@ Output Format (JSON):
   "conclusion": "Final thoughts and outro..."
 }
 
-Keep the conversation natural, informative, and entertaining. Each segment should be substantial enough for TTS (50-150 words).`;
+Keep the conversation natural, informative, and entertaining. Each segment should be 50-150 words.`;
 }
 
 async function generatePodcastScript(
